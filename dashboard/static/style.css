@@ -1,6 +1,6 @@
 body {
     font-family: system-ui, sans-serif;
-    max-width: 720px;
+    max-width: 900px;
     margin: 3rem auto;
     padding: 0 1rem;
 }
@@ -18,10 +18,80 @@ form {
     gap: 0.5rem;
 }
 
-pre,
-#jarvis-status {
+#backtest-message {
     white-space: pre-wrap;
     background: #f5f5f5;
     padding: 0.75rem;
     border-radius: 4px;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.kpi-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.9rem;
+    border-radius: 8px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.kpi-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+}
+
+.kpi-value {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.kpi-positive {
+    background: #e3f7e8;
+    border-color: #8fd6a4;
+}
+
+.kpi-positive .kpi-value {
+    color: #1a7a35;
+}
+
+.kpi-negative {
+    background: #fbe8e8;
+    border-color: #e7a3a3;
+}
+
+.kpi-negative .kpi-value {
+    color: #b32424;
+}
+
+#chart-container {
+    margin-top: 1.5rem;
+}
+
+.jarvis-panel {
+    white-space: pre-wrap;
+    padding: 0.75rem;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.jarvis-neutral {
+    background: #f5f5f5;
+}
+
+.jarvis-bullish {
+    background: #e3f7e8;
+}
+
+.jarvis-bearish {
+    background: #fbe8e8;
 }

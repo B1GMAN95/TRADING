@@ -34,3 +34,28 @@ def test_run_backtest_sma_crossover() -> None:
     assert result.strategy_name == "sma_crossover"
     assert result.starting_cash == 10_000
     assert isinstance(result.ending_value, float)
+    assert len(result.equity_curve) == 120
+    assert result.equity_curve[0].equity > 0
+    assert result.equity_curve[-1].date == "2023-04-30"
+
+
+def test_run_backtest_reports_win_rate_and_profit_factor_for_a_win() -> None:
+    from tests.test_icc_strategy import _LONG_ROWS, _STRATEGY_PARAMS
+
+    dates = pd.date_range("2023-01-01", periods=len(_LONG_ROWS), freq="D")
+    price_data = pd.DataFrame(_LONG_ROWS, index=dates)
+
+    request = BacktestRequest(
+        strategy_name="icc_gold",
+        symbol="TEST",
+        start_date="2023-01-01",
+        end_date="2023-01-01",
+        cash=10_000,
+        parameters=_STRATEGY_PARAMS,
+    )
+    result = run_backtest(request, price_data)
+
+    assert result.trades == 1
+    assert result.win_rate_pct == 100.0
+    assert result.profit_factor is None  # undefined with zero losing trades
+    assert result.equity_curve[-1].equity > result.starting_cash

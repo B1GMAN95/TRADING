@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>TradingBot Dashboard</title>
     <link rel="stylesheet" href="static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <h1>TradingBot Dashboard</h1>
@@ -22,20 +23,52 @@
             </select>
 
             <label for="start_date">Start date</label>
-            <input type="date" id="start_date" name="start_date" value="2024-01-02">
+            <input type="date" id="start_date" name="start_date" value="{{ data_start_date }}">
 
             <label for="end_date">End date</label>
-            <input type="date" id="end_date" name="end_date" value="2025-02-24">
+            <input type="date" id="end_date" name="end_date" value="{{ data_end_date }}">
 
             <button type="submit">Run backtest</button>
         </form>
-        <pre id="backtest-result">Run a backtest to see results.</pre>
+
+        <p id="backtest-message">Run a backtest to see results.</p>
+
+        <div id="kpi-grid" class="kpi-grid" hidden>
+            <div class="kpi-card" id="kpi-return">
+                <span class="kpi-label">Total Return</span>
+                <span class="kpi-value" id="kpi-return-value">&mdash;</span>
+            </div>
+            <div class="kpi-card" id="kpi-trades">
+                <span class="kpi-label">Total Trades</span>
+                <span class="kpi-value" id="kpi-trades-value">&mdash;</span>
+            </div>
+            <div class="kpi-card" id="kpi-winrate">
+                <span class="kpi-label">Win Rate</span>
+                <span class="kpi-value" id="kpi-winrate-value">&mdash;</span>
+            </div>
+            <div class="kpi-card" id="kpi-drawdown">
+                <span class="kpi-label">Max Drawdown</span>
+                <span class="kpi-value" id="kpi-drawdown-value">&mdash;</span>
+            </div>
+            <div class="kpi-card" id="kpi-sharpe">
+                <span class="kpi-label">Sharpe Ratio</span>
+                <span class="kpi-value" id="kpi-sharpe-value">&mdash;</span>
+            </div>
+            <div class="kpi-card" id="kpi-endvalue">
+                <span class="kpi-label">Ending Value</span>
+                <span class="kpi-value" id="kpi-endvalue-value">&mdash;</span>
+            </div>
+        </div>
+
+        <div id="chart-container" hidden>
+            <canvas id="equity-chart" height="90"></canvas>
+        </div>
     </section>
 
     <section>
         <h2>Jarvis live status &mdash; {{ symbol }}</h2>
         <button id="refresh-jarvis">Refresh</button>
-        <div id="jarvis-status">Loading...</div>
+        <div id="jarvis-status" class="jarvis-panel jarvis-neutral">Loading...</div>
     </section>
 
     <script src="static/main.js"></script>
