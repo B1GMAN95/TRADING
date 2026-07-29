@@ -21,10 +21,6 @@ class Settings(BaseSettings):
     default_cash: float = 100_000.0
     default_commission: float = 0.001
 
-    yunwu_api_key: str = ""
-    yunwu_base_url: str = "https://yunwu.ai"
-    yunwu_model: str = "gpt-4o-mini"
-
     news_api_key: str = ""
     news_api_base_url: str = "https://newsapi.org"
 
