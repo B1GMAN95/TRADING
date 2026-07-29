@@ -1,5 +1,6 @@
 import backtrader as bt
 
+from api.risk_manager import RiskManager, breakeven_stop_price, calculate_position_size
 from strategies.base import BaseStrategy
 
 
@@ -17,7 +18,11 @@ class ICCStrategy(BaseStrategy):
 
     On continuation the strategy submits a bracket order: the stop loss is
     placed just beyond the correction's extreme, and the take profit is set
-    at a minimum 1:2 reward-to-risk ratio.
+    at a minimum 1:2 reward-to-risk ratio. Every order is routed through the
+    global risk engine (api/risk_manager.py): position size is derived from
+    ATR and a fixed 1% account risk, new entries are blocked once a day's
+    losses breach the daily max-drawdown limit, and the stop is moved to
+    breakeven once a trade reaches 1:1 reward-to-risk.
     """
 
     params = (
@@ -36,6 +41,10 @@ class ICCStrategy(BaseStrategy):
         ("min_risk_reward_ratio", 2.0),
         ("max_bars_indication", 50),
         ("max_bars_correction", 30),
+        ("atr_period", 14),
+        ("risk_pct", 0.01),
+        ("atr_multiplier", 1.5),
+        ("daily_max_drawdown_pct", 3.0),
     )
 
     STATE_SEARCH_INDICATION = "search_indication"
@@ -49,9 +58,14 @@ class ICCStrategy(BaseStrategy):
         self.rsi = bt.ind.RSI(period=self.p.rsi_period)
         self.volume_ma = bt.ind.SMA(self.data.volume, period=self.p.volume_period)
         self.trend_cross = bt.ind.CrossOver(self.data.close, self.ema_trend)
+        self.atr = bt.ind.ATR(period=self.p.atr_period)
+
+        self.risk_manager = RiskManager(daily_max_drawdown_pct=self.p.daily_max_drawdown_pct)
+        self.breakeven_count = 0  # lifetime counter; not reset between trades
 
         self.order: bt.Order | None = None
         self._reset_setup()
+        self._clear_position_tracking()
 
     def _reset_setup(self) -> None:
         self.state = self.STATE_SEARCH_INDICATION
@@ -63,6 +77,15 @@ class ICCStrategy(BaseStrategy):
         self.correction_extreme: float | None = None
         self.correction_bar: int | None = None
 
+    def _clear_position_tracking(self) -> None:
+        self.position_direction: str | None = None
+        self.entry_price: float | None = None
+        self.initial_stop_price: float | None = None
+        self.take_profit_price: float | None = None
+        self.stop_order: bt.Order | None = None
+        self.limit_order: bt.Order | None = None
+        self.breakeven_triggered = False
+
     def notify_order(self, order: bt.Order) -> None:
         super().notify_order(order)
         if order.status in (order.Completed, order.Canceled, order.Margin, order.Rejected):
@@ -70,7 +93,18 @@ class ICCStrategy(BaseStrategy):
                 self.order = None
 
     def next(self) -> None:
-        if self.order or self.position:
+        self.risk_manager.update(self.broker.getvalue(), self.data.datetime.date(0))
+
+        if self.position:
+            self._manage_open_position()
+            return
+
+        self._clear_position_tracking()
+
+        if self.order:
+            return
+
+        if not self.risk_manager.is_trading_allowed():
             return
 
         if self.state == self.STATE_SEARCH_INDICATION:
@@ -87,6 +121,33 @@ class ICCStrategy(BaseStrategy):
                 self._reset_setup()
             else:
                 self._check_continuation()
+
+    # -- Risk management ------------------------------------------------
+
+    def _manage_open_position(self) -> None:
+        """Move the stop to breakeven once the trade reaches 1:1 reward-to-risk."""
+        if self.breakeven_triggered or self.entry_price is None or self.stop_order is None:
+            return
+
+        new_stop = breakeven_stop_price(
+            self.position_direction, self.entry_price, self.initial_stop_price, self.data.close[0]
+        )
+        if new_stop is None:
+            return
+
+        self.cancel(self.stop_order)
+        size = abs(self.position.size)
+        close_position = self.sell if self.position_direction == "long" else self.buy
+
+        new_stop_order = close_position(exectype=bt.Order.Stop, price=new_stop, size=size)
+        new_limit_order = close_position(
+            exectype=bt.Order.Limit, price=self.take_profit_price, size=size, oco=new_stop_order
+        )
+        self.stop_order = new_stop_order
+        self.limit_order = new_limit_order
+        self.breakeven_triggered = True
+        self.breakeven_count += 1
+        self.log(f"Breakeven: stop moved to entry at {new_stop:.2f}")
 
     # -- 1. Indication -------------------------------------------------
 
@@ -219,11 +280,27 @@ class ICCStrategy(BaseStrategy):
             else entry_price - risk * reward_ratio
         )
 
+        size = calculate_position_size(
+            account_balance=self.broker.getvalue(),
+            atr=self.atr[0],
+            risk_pct=self.p.risk_pct,
+            atr_multiplier=self.p.atr_multiplier,
+        )
+
         bracket = self.buy_bracket if direction == "long" else self.sell_bracket
-        orders = bracket(exectype=bt.Order.Market, stopprice=stop_price, limitprice=take_profit)
+        orders = bracket(
+            size=size, exectype=bt.Order.Market, stopprice=stop_price, limitprice=take_profit
+        )
         self.order = orders[0]
+        self.stop_order = orders[1]
+        self.limit_order = orders[2]
+        self.position_direction = direction
+        self.entry_price = entry_price
+        self.initial_stop_price = stop_price
+        self.take_profit_price = take_profit
+        self.breakeven_triggered = False
         self.log(
             f"{direction.upper()} continuation entry={entry_price:.2f} "
-            f"SL={stop_price:.2f} TP={take_profit:.2f}"
+            f"SL={stop_price:.2f} TP={take_profit:.2f} size={size:.4f}"
         )
         self._reset_setup()

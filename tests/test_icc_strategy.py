@@ -17,6 +17,7 @@ _STRATEGY_PARAMS = dict(
     zone_tolerance=0.02,
     max_bars_indication=50,
     max_bars_correction=50,
+    atr_period=4,
 )
 
 # A hand-crafted long setup: flat warmup, an EMA200-breaking impulse bar with a
