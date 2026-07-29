@@ -23,6 +23,7 @@ _STRATEGY_PARAMS = dict(
     zone_tolerance=0.02,
     max_bars_indication=50,
     max_bars_correction=50,
+    atr_period=4,
 )
 
 # Same hand-crafted setup as tests/test_icc_strategy.py, trimmed to end exactly
