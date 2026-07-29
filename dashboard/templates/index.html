@@ -3,11 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <title>TradingBot Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
     <h1>TradingBot Dashboard</h1>
     <p>API status: <span id="status">checking...</span></p>
-    <script src="/static/main.js"></script>
+
+    <section>
+        <h2>Backtest</h2>
+        <form id="backtest-form">
+            <label for="strategy">Strategy</label>
+            <select id="strategy" name="strategy">
+                {% for strategy in strategies %}
+                <option value="{{ strategy }}" {% if strategy == "icc_gold" %}selected{% endif %}>
+                    {{ strategy }}
+                </option>
+                {% endfor %}
+            </select>
+
+            <label for="start_date">Start date</label>
+            <input type="date" id="start_date" name="start_date" value="2024-01-02">
+
+            <label for="end_date">End date</label>
+            <input type="date" id="end_date" name="end_date" value="2025-02-24">
+
+            <button type="submit">Run backtest</button>
+        </form>
+        <pre id="backtest-result">Run a backtest to see results.</pre>
+    </section>
+
+    <section>
+        <h2>Jarvis live status &mdash; {{ symbol }}</h2>
+        <button id="refresh-jarvis">Refresh</button>
+        <div id="jarvis-status">Loading...</div>
+    </section>
+
+    <script src="static/main.js"></script>
 </body>
 </html>
