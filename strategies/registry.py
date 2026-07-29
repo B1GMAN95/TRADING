@@ -1,7 +1,9 @@
 from strategies.examples.sma_crossover import SmaCrossoverStrategy
+from strategies.icc_strategy import ICCStrategy
 
 STRATEGY_REGISTRY: dict[str, type] = {
     "sma_crossover": SmaCrossoverStrategy,
+    "icc_gold": ICCStrategy,
 }
 
 
