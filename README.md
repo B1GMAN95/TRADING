@@ -54,3 +54,17 @@ pytest
 1. Opprett en fil under `strategies/examples/` som arver fra `strategies.base.BaseStrategy`.
 2. Registrer den i `strategies/registry.py` sitt `STRATEGY_REGISTRY`.
 3. Kjør en backtest via `POST /backtests` med `strategy_name` satt til nøkkelen din.
+
+## Publisere dashboardet (Render)
+
+Repoet har en `render.yaml` som gjør oppsett på [Render](https://render.com) enkelt:
+
+1. Opprett en gratis konto på render.com og koble til GitHub-kontoen din.
+2. Velg **New +** → **Blueprint**, og pek på dette repoet (`B1GMAN95/TRADING`).
+   Render leser `render.yaml` automatisk og setter opp bygg-/startkommandoer.
+3. (Valgfritt) Sett `YUNWU_API_KEY` og `NEWS_API_KEY` under Environment i Render
+   for at Jarvis-status-panelet skal vise ekte AI-analyse og nyheter. Uten
+   disse viser dashboardet fortsatt teknisk signal, bare med en tydelig
+   "utilgjengelig"-melding for AI-delen.
+4. Etter deploy får du en offentlig URL i stil med `https://tradingbot-xxxx.onrender.com`.
+   Dashboardet ligger på `/dashboard/`.

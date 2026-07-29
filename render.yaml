@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tradingbot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: YUNWU_API_KEY
+        sync: false
+      - key: YUNWU_BASE_URL
+        value: https://yunwu.ai
+      - key: YUNWU_MODEL
+        value: gpt-4o-mini
+      - key: NEWS_API_KEY
+        sync: false
+      - key: NEWS_API_BASE_URL
+        value: https://newsapi.org
