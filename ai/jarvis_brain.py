@@ -1,10 +1,13 @@
 import json
+import os
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
 
-from config import get_settings
 from models.schemas.analysis import MarketAnalysis
+
+load_dotenv()
 
 _SYSTEM_PROMPT = (
     "You are a disciplined market analyst. Given technical indicators and news "
@@ -31,11 +34,11 @@ class JarvisBrain:
         timeout: float = 30.0,
         client: httpx.Client | None = None,
     ) -> None:
-        settings = get_settings()
-        self._api_key = api_key or settings.yunwu_api_key
-        self._model = model or settings.yunwu_model
+        self._api_key = api_key or os.environ.get("YUNWU_API_KEY", "")
+        self._model = model or os.environ.get("YUNWU_MODEL", "claude-3-5-sonnet")
+        resolved_base_url = base_url or os.environ.get("YUNWU_BASE_URL", "https://yunwu.ai")
         self._client = client or httpx.Client(
-            base_url=(base_url or settings.yunwu_base_url).rstrip("/"),
+            base_url=resolved_base_url.rstrip("/"),
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
