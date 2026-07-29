@@ -25,10 +25,23 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 @dashboard_app.get("/")
 def index(request: Request):
+    try:
+        price_data = load_csv(f"data/{GOLD_SYMBOL}.csv")
+        data_start_date = price_data.index.min().strftime("%Y-%m-%d")
+        data_end_date = price_data.index.max().strftime("%Y-%m-%d")
+    except FileNotFoundError:
+        data_start_date = ""
+        data_end_date = ""
+
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"strategies": list(STRATEGY_REGISTRY), "symbol": GOLD_SYMBOL},
+        {
+            "strategies": list(STRATEGY_REGISTRY),
+            "symbol": GOLD_SYMBOL,
+            "data_start_date": data_start_date,
+            "data_end_date": data_end_date,
+        },
     )
 
 

@@ -11,6 +11,12 @@ class BacktestRequest(BaseModel):
     parameters: dict = Field(default_factory=dict)
 
 
+class EquityPoint(BaseModel):
+    date: str
+    equity: float
+    drawdown_pct: float
+
+
 class BacktestResult(BaseModel):
     strategy_name: str
     symbol: str
@@ -18,5 +24,8 @@ class BacktestResult(BaseModel):
     ending_value: float
     total_return_pct: float
     trades: int
+    win_rate_pct: float | None = None
+    profit_factor: float | None = None
     sharpe_ratio: float | None = None
     max_drawdown_pct: float | None = None
+    equity_curve: list[EquityPoint] = Field(default_factory=list)
