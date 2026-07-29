@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     yunwu_base_url: str = "https://yunwu.ai"
     yunwu_model: str = "gpt-4o-mini"
 
+    news_api_key: str = ""
+    news_api_base_url: str = "https://newsapi.org"
+
 
 @lru_cache
 def get_settings() -> Settings:
