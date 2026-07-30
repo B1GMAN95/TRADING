@@ -1,6 +1,7 @@
 import backtrader as bt
 import pandas as pd
 
+from backtesting.data_loader import add_price_feeds
 from models.schemas.strategy import BacktestRequest, BacktestResult, EquityPoint
 from strategies.registry import get_strategy
 
@@ -32,8 +33,7 @@ def run_backtest(request: BacktestRequest, price_data: pd.DataFrame) -> Backtest
     strategy_cls = get_strategy(request.strategy_name)
     cerebro.addstrategy(strategy_cls, **request.parameters)
 
-    data_feed = bt.feeds.PandasData(dataname=price_data)
-    cerebro.adddata(data_feed)
+    add_price_feeds(cerebro, strategy_cls, price_data)
 
     cerebro.broker.setcash(request.cash)
     cerebro.broker.setcommission(commission=request.commission)

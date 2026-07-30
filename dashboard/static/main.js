@@ -156,10 +156,21 @@ function applyJarvisTone(bias) {
     }
 }
 
+function applyMtfCircles(timeframes) {
+    ["4h", "1h", "15m", "5m"].forEach((tier) => {
+        const circle = document.getElementById(`mtf-circle-${tier}`);
+        if (!circle) return;
+        const bias = (timeframes && timeframes[tier]) || "neutral";
+        circle.classList.remove("mtf-bullish", "mtf-bearish", "mtf-neutral");
+        circle.classList.add(`mtf-${bias}`);
+    });
+}
+
 function loadJarvisStatus() {
     const statusEl = document.getElementById("jarvis-status");
     statusEl.textContent = "Loading...";
     applyJarvisTone(null);
+    applyMtfCircles(null);
 
     fetch("/dashboard/status/jarvis")
         .then((res) => res.json())
@@ -170,7 +181,12 @@ function loadJarvisStatus() {
                 return;
             }
 
+            applyMtfCircles(data.timeframes);
+
             const lines = [`Technical signal (icc_gold): ${data.technical_signal}`];
+            if (data.mtf_alpha_score != null) {
+                lines.push(`MTF Alpha Score: ${data.mtf_alpha_score}`);
+            }
 
             if (data.ai_error) {
                 lines.push(data.ai_error);

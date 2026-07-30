@@ -62,6 +62,60 @@ def get_technical_signal(price_data: pd.DataFrame, **strategy_params: Any) -> Ma
     return MarketBias.NEUTRAL
 
 
+_OHLCV_AGG = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+
+
+def _tier_bias(close: pd.Series, ema_period: int = 200) -> str:
+    if len(close) < 2:
+        return "neutral"
+    ema = close.ewm(span=min(ema_period, len(close)), adjust=False).mean()
+    if close.iloc[-1] > ema.iloc[-1]:
+        return "bullish"
+    if close.iloc[-1] < ema.iloc[-1]:
+        return "bearish"
+    return "neutral"
+
+
+def get_mtf_snapshot(price_data: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    """Lightweight (pandas-only) technical snapshot per timeframe tier, for
+    JarvisBrain's Multi-Timeframe Alpha Score and the dashboard's per-
+    timeframe status circles.
+
+    `price_data` is assumed to already be at the finest (15M) granularity,
+    the same convention as backtesting/data_loader.add_price_feeds(): 4H/1H
+    are derived by resampling it, and "5M" is aliased to the native 15M data
+    (a genuine 5M feed would need price_data itself re-sourced at 5-minute
+    granularity - see that module's docstring).
+    """
+    tier_frames = {
+        "4h": price_data.resample("4h").agg(_OHLCV_AGG).dropna(),
+        "1h": price_data.resample("1h").agg(_OHLCV_AGG).dropna(),
+        "15m": price_data,
+        "5m": price_data,
+    }
+
+    snapshot: dict[str, dict[str, Any]] = {}
+    for label, tier_df in tier_frames.items():
+        indicators = get_latest_technical_values(tier_df) if len(tier_df) >= 200 else {}
+        snapshot[label] = {**indicators, "bias": _tier_bias(tier_df["close"])}
+    return snapshot
+
+
+def compute_mtf_alpha_score(timeframe_biases: dict[str, str]) -> float:
+    """Fraction of timeframes agreeing with the dominant bias (0.0-1.0).
+
+    A deterministic complement to JarvisBrain's own qualitative score - LLMs
+    aren't reliable at precise arithmetic, so this is computed here and
+    passed into the prompt as a reference rather than left for the model to
+    compute unassisted.
+    """
+    biases = list(timeframe_biases.values())
+    if not biases:
+        return 0.0
+    dominant_count = max(biases.count(bias) for bias in set(biases))
+    return round(dominant_count / len(biases), 2)
+
+
 def get_latest_technical_values(
     price_data: pd.DataFrame,
     rsi_period: int = 14,

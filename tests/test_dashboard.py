@@ -19,7 +19,7 @@ class _StubBrain:
     def __exit__(self, *exc_info: object) -> None:
         pass
 
-    def analyze_market(self, indicators: dict, headlines: list[str]) -> MarketAnalysis:
+    def analyze_market(self, indicators: dict, headlines: list[str], **_kwargs) -> MarketAnalysis:
         if self._raise_error:
             raise JarvisBrainError("Yunwu API unreachable")
         return MarketAnalysis(

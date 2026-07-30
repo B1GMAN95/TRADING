@@ -2,6 +2,7 @@ import backtrader as bt
 
 from api.risk_manager import RiskManager, breakeven_stop_price, calculate_position_size
 from strategies.base import BaseStrategy
+from strategies.mtf_bias import MTFBias
 
 
 class SMCStrategy(BaseStrategy):
@@ -25,7 +26,14 @@ class SMCStrategy(BaseStrategy):
     Every order goes through the global risk engine (api/risk_manager.py):
     ATR/1%-risk position sizing, a daily max-drawdown lockout, and a
     breakeven stop once a trade reaches 1:1 reward-to-risk.
+
+    When given 1H/4H feeds (strategies/mtf_bias.py), an MSS is only started -
+    and re-checked before the OB retest order is submitted - if its direction
+    matches both the 1H trend and 4H market structure. Without those extra
+    feeds, this gate is a no-op.
     """
+
+    requires_mtf = True
 
     params = (
         ("swing_lookback", 20),
@@ -49,6 +57,8 @@ class SMCStrategy(BaseStrategy):
         self.swing_high = bt.ind.Highest(self.data.high, period=self.p.swing_lookback)
         self.swing_low = bt.ind.Lowest(self.data.low, period=self.p.swing_lookback)
         self.atr = bt.ind.ATR(period=self.p.atr_period)
+
+        self.mtf_bias = MTFBias(self) if len(self.datas) >= 3 else None
 
         self.risk_manager = RiskManager(daily_max_drawdown_pct=self.p.daily_max_drawdown_pct)
         self.breakeven_count = 0  # lifetime counter; not reset between trades
@@ -80,8 +90,13 @@ class SMCStrategy(BaseStrategy):
                 self.order = None
                 self._order_submitted_bar = None
 
+    def _mtf_allows(self, direction: str) -> bool:
+        return self.mtf_bias is None or self.mtf_bias.allows(direction)
+
     def next(self) -> None:
         self.risk_manager.update(self.broker.getvalue(), self.data.datetime.date(0))
+        if self.mtf_bias is not None:
+            self.mtf_bias.update()
 
         if self.position:
             self._manage_open_position()
@@ -143,9 +158,9 @@ class SMCStrategy(BaseStrategy):
         prior_swing_high = self.swing_high[-1]
         prior_swing_low = self.swing_low[-1]
 
-        if self.data.close[0] > prior_swing_high:
+        if self.data.close[0] > prior_swing_high and self._mtf_allows("long"):
             self._start_mss("long", prior_swing_low)
-        elif self.data.close[0] < prior_swing_low:
+        elif self.data.close[0] < prior_swing_low and self._mtf_allows("short"):
             self._start_mss("short", prior_swing_high)
 
     def _start_mss(self, direction: str, structure_reference: float) -> None:
@@ -183,6 +198,10 @@ class SMCStrategy(BaseStrategy):
         """Place a limit order at the last opposite-colored candle (the Order
         Block) before the FVG's impulse candle, i.e. two bars back.
         """
+        if not self._mtf_allows(direction):
+            self._reset_setup()
+            return
+
         ob_open = self.data.open[-2]
         ob_close = self.data.close[-2]
         ob_high = self.data.high[-2]
