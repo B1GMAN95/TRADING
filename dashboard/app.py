@@ -8,7 +8,7 @@ from ai.jarvis_brain import JarvisBrain, JarvisBrainError
 from api.trading_engine import (
     TradingEngineError,
     compute_mtf_alpha_score,
-    fetch_gold_headlines,
+    fetch_headlines,
     get_latest_technical_values,
     get_mtf_snapshot,
     get_technical_signal,
@@ -18,6 +18,16 @@ from strategies.registry import STRATEGY_REGISTRY
 
 BASE_DIR = Path(__file__).resolve().parent
 GOLD_SYMBOL = "XAUUSD"
+
+# Multi-asset support: symbol -> display label + the news search query used
+# to fetch headlines for that asset's Jarvis analysis. Every entry must have
+# a matching data/<symbol>.csv sample file.
+ASSET_REGISTRY: dict[str, dict[str, str]] = {
+    "XAUUSD": {"label": "Gold (XAU/USD)", "news_query": "gold OR XAU/USD OR XAUUSD"},
+    "NASDAQ": {"label": "Nasdaq 100", "news_query": "Nasdaq 100 OR NDX OR Nasdaq composite"},
+    "SP500": {"label": "S&P 500", "news_query": "S&P 500 OR SPX OR S&P500"},
+}
+
 # Live status only needs enough recent history for EMA50/RSI14/ATR14 to be
 # fully warmed up - replaying the entire (now intraday, tens of thousands of
 # bars) sample file on every request would make the endpoint sluggish.
@@ -44,6 +54,10 @@ def index(request: Request):
         "index.html",
         {
             "strategies": list(STRATEGY_REGISTRY),
+            "assets": [
+                {"symbol": symbol, "label": info["label"]}
+                for symbol, info in ASSET_REGISTRY.items()
+            ],
             "symbol": GOLD_SYMBOL,
             "data_start_date": data_start_date,
             "data_end_date": data_end_date,
@@ -52,12 +66,14 @@ def index(request: Request):
 
 
 @dashboard_app.get("/status/jarvis")
-def jarvis_status() -> dict:
-    """Live status of what the ICC strategy and JarvisBrain think of gold right now."""
+def jarvis_status(symbol: str = GOLD_SYMBOL) -> dict:
+    """Live status of what icc_gold and JarvisBrain think of `symbol` right now."""
+    asset = ASSET_REGISTRY.get(symbol, {"label": symbol, "news_query": symbol})
+
     try:
-        price_data = load_csv(f"data/{GOLD_SYMBOL}.csv").tail(LIVE_STATUS_LOOKBACK_BARS)
+        price_data = load_csv(f"data/{symbol}.csv").tail(LIVE_STATUS_LOOKBACK_BARS)
     except FileNotFoundError:
-        return {"error": f"No sample price data found for {GOLD_SYMBOL}."}
+        return {"error": f"No sample price data found for {symbol}."}
 
     technical_signal = get_technical_signal(price_data)
     indicators = get_latest_technical_values(price_data)
@@ -67,7 +83,7 @@ def jarvis_status() -> dict:
     mtf_alpha_score = compute_mtf_alpha_score(timeframes)
 
     try:
-        headlines = fetch_gold_headlines()
+        headlines = fetch_headlines(asset["news_query"])
     except TradingEngineError:
         headlines = []
 
@@ -81,6 +97,7 @@ def jarvis_status() -> dict:
             )
     except JarvisBrainError as exc:
         return {
+            "symbol": symbol,
             "technical_signal": technical_signal.value,
             "indicators": indicators,
             "timeframes": timeframes,
@@ -91,6 +108,7 @@ def jarvis_status() -> dict:
     agrees = technical_signal.value != "neutral" and ai_analysis.bias == technical_signal
 
     return {
+        "symbol": symbol,
         "technical_signal": technical_signal.value,
         "indicators": indicators,
         "timeframes": timeframes,
