@@ -139,8 +139,8 @@ def get_latest_technical_values(
     return indicators
 
 
-def fetch_gold_headlines(limit: int = 5, client: httpx.Client | None = None) -> list[str]:
-    """Fetch the latest news headlines about gold (XAU/USD) via a news API."""
+def fetch_headlines(query: str, limit: int = 5, client: httpx.Client | None = None) -> list[str]:
+    """Fetch the latest news headlines matching `query` via a news API."""
     settings = get_settings()
     owns_client = client is None
     http_client = client or httpx.Client(
@@ -150,7 +150,7 @@ def fetch_gold_headlines(limit: int = 5, client: httpx.Client | None = None) -> 
         response = http_client.get(
             "/v2/everything",
             params={
-                "q": "gold OR XAU/USD OR XAUUSD",
+                "q": query,
                 "sortBy": "publishedAt",
                 "language": "en",
                 "pageSize": limit,
@@ -161,10 +161,15 @@ def fetch_gold_headlines(limit: int = 5, client: httpx.Client | None = None) -> 
         articles = response.json().get("articles", [])
         return [article["title"] for article in articles if article.get("title")]
     except httpx.HTTPError as exc:
-        raise TradingEngineError(f"Failed to fetch gold headlines: {exc}") from exc
+        raise TradingEngineError(f"Failed to fetch headlines for '{query}': {exc}") from exc
     finally:
         if owns_client:
             http_client.close()
+
+
+def fetch_gold_headlines(limit: int = 5, client: httpx.Client | None = None) -> list[str]:
+    """Fetch the latest news headlines about gold (XAU/USD) via a news API."""
+    return fetch_headlines("gold OR XAU/USD OR XAUUSD", limit=limit, client=client)
 
 
 def evaluate_trade(

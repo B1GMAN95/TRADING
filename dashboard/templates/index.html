@@ -6,9 +6,19 @@
     <link rel="stylesheet" href="static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body data-default-symbol="{{ symbol }}">
     <h1>TradingBot Dashboard</h1>
     <p>API status: <span id="status">checking...</span></p>
+
+    <nav id="asset-switcher" class="asset-switcher">
+        {% for asset in assets %}
+        <button
+            type="button"
+            class="asset-tab{% if asset.symbol == symbol %} asset-tab-active{% endif %}"
+            data-symbol="{{ asset.symbol }}"
+        >{{ asset.label }}</button>
+        {% endfor %}
+    </nav>
 
     <section>
         <h2>Backtest</h2>
@@ -66,7 +76,7 @@
     </section>
 
     <section>
-        <h2>Jarvis live status &mdash; {{ symbol }}</h2>
+        <h2>Jarvis live status &mdash; <span id="jarvis-symbol-label">{{ symbol }}</span></h2>
         <button id="refresh-jarvis">Refresh</button>
 
         <div id="mtf-indicator" class="mtf-indicator">

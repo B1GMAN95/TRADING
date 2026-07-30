@@ -1,4 +1,4 @@
-const GOLD_SYMBOL = "XAUUSD";
+let selectedAsset = document.body.dataset.defaultSymbol || "XAUUSD";
 let equityChart = null;
 
 fetch("/health")
@@ -122,7 +122,7 @@ document.getElementById("backtest-form").addEventListener("submit", (event) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             strategy_name: strategyName,
-            symbol: GOLD_SYMBOL,
+            symbol: selectedAsset,
             start_date: startDate,
             end_date: endDate,
         }),
@@ -168,11 +168,12 @@ function applyMtfCircles(timeframes) {
 
 function loadJarvisStatus() {
     const statusEl = document.getElementById("jarvis-status");
+    document.getElementById("jarvis-symbol-label").textContent = selectedAsset;
     statusEl.textContent = "Loading...";
     applyJarvisTone(null);
     applyMtfCircles(null);
 
-    fetch("/dashboard/status/jarvis")
+    fetch(`/dashboard/status/jarvis?symbol=${encodeURIComponent(selectedAsset)}`)
         .then((res) => res.json())
         .then((data) => {
             if (data.error) {
@@ -208,6 +209,25 @@ function loadJarvisStatus() {
             applyJarvisTone(null);
         });
 }
+
+function selectAsset(symbol) {
+    if (symbol === selectedAsset) return;
+    selectedAsset = symbol;
+
+    document.querySelectorAll("#asset-switcher .asset-tab").forEach((tab) => {
+        tab.classList.toggle("asset-tab-active", tab.dataset.symbol === symbol);
+    });
+
+    document.getElementById("kpi-grid").hidden = true;
+    document.getElementById("chart-container").hidden = true;
+    document.getElementById("backtest-message").textContent = "Run a backtest to see results.";
+
+    loadJarvisStatus();
+}
+
+document.querySelectorAll("#asset-switcher .asset-tab").forEach((tab) => {
+    tab.addEventListener("click", () => selectAsset(tab.dataset.symbol));
+});
 
 document.getElementById("refresh-jarvis").addEventListener("click", loadJarvisStatus);
 loadJarvisStatus();

@@ -9,6 +9,7 @@ from api.trading_engine import (
     compute_mtf_alpha_score,
     evaluate_trade,
     fetch_gold_headlines,
+    fetch_headlines,
     get_latest_technical_values,
     get_mtf_snapshot,
     get_technical_signal,
@@ -125,6 +126,25 @@ def test_fetch_gold_headlines_parses_titles() -> None:
     client = _news_client_with_titles(["Gold hits record high", "Fed signals rate pause"])
     headlines = fetch_gold_headlines(client=client)
     assert headlines == ["Gold hits record high", "Fed signals rate pause"]
+
+
+def test_fetch_headlines_parses_titles_for_an_arbitrary_query() -> None:
+    client = _news_client_with_titles(["Nasdaq 100 hits new high", "Tech stocks rally"])
+    headlines = fetch_headlines("Nasdaq 100 OR NDX", client=client)
+    assert headlines == ["Nasdaq 100 hits new high", "Tech stocks rally"]
+
+
+def test_fetch_headlines_sends_query_as_search_term() -> None:
+    seen_params = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_params.update(dict(request.url.params))
+        return httpx.Response(200, json={"articles": []})
+
+    client = httpx.Client(base_url="https://newsapi.org", transport=httpx.MockTransport(handler))
+    fetch_headlines("S&P 500 OR SPX", client=client)
+
+    assert seen_params["q"] == "S&P 500 OR SPX"
 
 
 def test_evaluate_trade_approves_when_technical_and_ai_agree() -> None:
