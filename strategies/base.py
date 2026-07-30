@@ -4,6 +4,11 @@ import backtrader as bt
 class BaseStrategy(bt.Strategy):
     """Common logging and order-notification behavior for all strategies."""
 
+    #: Strategies that need 1H/4H bias feeds (see strategies/mtf_bias.py) set
+    #: this to True so backtesting/engine.py and api/trading_engine.py know
+    #: to add the resampled secondary data feeds.
+    requires_mtf: bool = False
+
     def log(self, txt: str, dt=None) -> None:
         dt = dt or self.datas[0].datetime.date(0)
         print(f"{dt.isoformat()} {txt}")

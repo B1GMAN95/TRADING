@@ -14,8 +14,11 @@ _SYSTEM_PROMPT = (
     "headlines, respond ONLY with a JSON object with keys: "
     "'bias' (one of 'bullish', 'bearish', 'neutral'), "
     "'confidence_score' (a float between 0 and 1), "
-    "'trading_advice' (a short, actionable recommendation), and "
-    "'rationale' (a brief explanation of the reasoning)."
+    "'trading_advice' (a short, actionable recommendation), "
+    "'rationale' (a brief explanation of the reasoning), and, only when a "
+    "multi-timeframe matrix is supplied, 'mtf_alpha_score' (a float between "
+    "0 and 1 measuring how strongly the 4H/1H/15M/5M timeframes confirm "
+    "each other)."
 )
 
 
@@ -59,13 +62,25 @@ class JarvisBrain:
         self,
         indicators: dict[str, Any],
         headlines: list[str],
+        timeframes: dict[str, dict[str, Any]] | None = None,
+        reference_alpha_score: float | None = None,
     ) -> MarketAnalysis:
         """Ask the LLM for a market bias, confidence score, and trading advice.
 
         `indicators` maps indicator names to their current values (e.g. {"rsi": 65}).
         `headlines` is a list of recent news headlines relevant to the market.
+
+        `timeframes`, when given, is a matrix of per-timeframe technical data
+        (see api.trading_engine.get_mtf_snapshot) - keyed "4h"/"1h"/"15m"/"5m"
+        - that the model is asked to weigh together into a single
+        'mtf_alpha_score'. `reference_alpha_score` is a deterministic
+        confluence score computed from that same matrix
+        (api.trading_engine.compute_mtf_alpha_score); it's passed to the model
+        as a sanity-check reference (LLMs aren't reliable at precise
+        arithmetic) and used to fill in `mtf_alpha_score` if the model's
+        response omits it.
         """
-        prompt = self._build_prompt(indicators, headlines)
+        prompt = self._build_prompt(indicators, headlines, timeframes, reference_alpha_score)
 
         try:
             response = self._client.post(
@@ -91,10 +106,45 @@ class JarvisBrain:
         except (KeyError, IndexError, json.JSONDecodeError) as exc:
             raise JarvisBrainError(f"Unexpected Yunwu response: {payload}") from exc
 
-        return MarketAnalysis.model_validate(data)
+        analysis = MarketAnalysis.model_validate(data)
+        if analysis.mtf_alpha_score is None and reference_alpha_score is not None:
+            analysis = analysis.model_copy(update={"mtf_alpha_score": reference_alpha_score})
+        return analysis
 
     @staticmethod
-    def _build_prompt(indicators: dict[str, Any], headlines: list[str]) -> str:
+    def _build_prompt(
+        indicators: dict[str, Any],
+        headlines: list[str],
+        timeframes: dict[str, dict[str, Any]] | None = None,
+        reference_alpha_score: float | None = None,
+    ) -> str:
         indicators_text = "\n".join(f"- {key}: {value}" for key, value in indicators.items())
         headlines_text = "\n".join(f"- {headline}" for headline in headlines) or "None"
-        return f"Technical indicators:\n{indicators_text}\n\nNews headlines:\n{headlines_text}"
+        sections = [
+            f"Technical indicators:\n{indicators_text}",
+            f"News headlines:\n{headlines_text}",
+        ]
+
+        if timeframes:
+            tf_lines = []
+            for label in ("4h", "1h", "15m", "5m"):
+                tier = timeframes.get(label)
+                if not tier:
+                    continue
+                details = ", ".join(f"{key}={value}" for key, value in tier.items())
+                tf_lines.append(f"- {label.upper()}: {details}")
+            sections.append(
+                "Multi-timeframe matrix (4H/1H = long-term bias, 15M/5M = "
+                "execution timeframes):\n"
+                + "\n".join(tf_lines)
+                + "\n\nWeigh the confluence across all four timeframes and "
+                "include an 'mtf_alpha_score' key in your JSON response."
+            )
+            if reference_alpha_score is not None:
+                sections.append(
+                    "Reference confluence score computed from the matrix "
+                    f"above: {reference_alpha_score:.2f}. Use it as a sanity "
+                    "check for your own 'mtf_alpha_score'."
+                )
+
+        return "\n\n".join(sections)
