@@ -103,7 +103,7 @@ def test_short_indication_correction_continuation_enters_and_wins() -> None:
 
 
 def test_icc_strategy_runs_via_engine_with_default_params() -> None:
-    """Smoke test with the real EMA200/RSI14 defaults over a longer series."""
+    """Smoke test with the real (intraday-tuned) EMA/RSI defaults over a longer series."""
     dates = pd.date_range("2022-01-01", periods=400, freq="D")
     rng = np.random.default_rng(7)
     prices = 1900 + np.cumsum(rng.normal(0, 5, size=400))

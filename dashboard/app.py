@@ -16,6 +16,10 @@ from strategies.registry import STRATEGY_REGISTRY
 
 BASE_DIR = Path(__file__).resolve().parent
 GOLD_SYMBOL = "XAUUSD"
+# Live status only needs enough recent history for EMA50/RSI14/ATR14 to be
+# fully warmed up - replaying the entire (now intraday, tens of thousands of
+# bars) sample file on every request would make the endpoint sluggish.
+LIVE_STATUS_LOOKBACK_BARS = 3000
 
 dashboard_app = FastAPI(title="TradingBot Dashboard")
 dashboard_app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -49,7 +53,7 @@ def index(request: Request):
 def jarvis_status() -> dict:
     """Live status of what the ICC strategy and JarvisBrain think of gold right now."""
     try:
-        price_data = load_csv(f"data/{GOLD_SYMBOL}.csv")
+        price_data = load_csv(f"data/{GOLD_SYMBOL}.csv").tail(LIVE_STATUS_LOOKBACK_BARS)
     except FileNotFoundError:
         return {"error": f"No sample price data found for {GOLD_SYMBOL}."}
 

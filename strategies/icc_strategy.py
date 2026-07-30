@@ -5,11 +5,13 @@ from strategies.base import BaseStrategy
 
 
 class ICCStrategy(BaseStrategy):
-    """Indication-Correction-Continuation strategy, designed for gold (XAU/USD).
+    """Indication-Correction-Continuation strategy, designed for gold (XAU/USD)
+    on intraday (5m/15m) timeframes by default - see the params below for the
+    EMA/RSI tuning that assumes.
 
-    1. Indication (Impuls): price breaks strongly through EMA200 (up or down)
-       on above-average volume, signaling an impulsive move.
-    2. Correction (Rekyl): price pulls back to EMA20, EMA50, or a Fibonacci
+    1. Indication (Impuls): price breaks strongly through the trend EMA (up or
+       down) on above-average volume, signaling an impulsive move.
+    2. Correction (Rekyl): price pulls back to a faster EMA or a Fibonacci
        retracement of the impulse leg, while RSI becomes momentarily
        overbought/oversold.
     3. Continuation (Fortsettelse): an engulfing candle, or a break of the
@@ -26,12 +28,16 @@ class ICCStrategy(BaseStrategy):
     """
 
     params = (
-        ("ema_fast1", 20),
-        ("ema_fast2", 50),
-        ("ema_trend", 200),
+        # Shortened from 20/50/200 for intraday (5m/15m) timeframes, where a
+        # 200-bar trend EMA is too slow to react within a single session.
+        ("ema_fast1", 10),
+        ("ema_fast2", 25),
+        ("ema_trend", 50),
         ("rsi_period", 14),
-        ("rsi_oversold", 30),
-        ("rsi_overbought", 70),
+        # Loosened from 30/70 so intraday pullbacks (which are shallower than
+        # daily-bar corrections) actually qualify as a Correction.
+        ("rsi_oversold", 45),
+        ("rsi_overbought", 55),
         ("volume_period", 20),
         ("volume_multiplier", 1.5),
         ("fib_level", 0.5),
@@ -285,6 +291,7 @@ class ICCStrategy(BaseStrategy):
             atr=self.atr[0],
             risk_pct=self.p.risk_pct,
             atr_multiplier=self.p.atr_multiplier,
+            price=entry_price,
         )
 
         bracket = self.buy_bracket if direction == "long" else self.sell_bracket

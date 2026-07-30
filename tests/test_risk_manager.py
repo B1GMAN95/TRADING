@@ -30,6 +30,25 @@ def test_calculate_position_size_scales_with_risk_pct() -> None:
     assert large == pytest.approx(small * 2)
 
 
+def test_calculate_position_size_caps_at_what_the_account_can_afford() -> None:
+    # A tiny ATR (e.g. on a lower timeframe) implies a huge position; without
+    # a price-based cap this would be unaffordable and get rejected as margin.
+    uncapped = calculate_position_size(account_balance=10_000, atr=0.05, risk_pct=0.01)
+    capped = calculate_position_size(account_balance=10_000, atr=0.05, risk_pct=0.01, price=2000)
+
+    assert uncapped * 2000 > 10_000  # confirms the scenario is actually unaffordable
+    assert capped == pytest.approx((10_000 * 0.95) / 2000)
+
+
+def test_calculate_position_size_price_cap_is_a_noop_when_already_affordable() -> None:
+    # size = 100 / 7.5 ≈ 13.33 units; at price=1 that's ~$13.33 notional,
+    # nowhere near the $10,000 balance, so the cap shouldn't change anything.
+    uncapped = calculate_position_size(account_balance=10_000, atr=5.0, risk_pct=0.01)
+    capped = calculate_position_size(account_balance=10_000, atr=5.0, risk_pct=0.01, price=1)
+
+    assert capped == pytest.approx(uncapped)
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -39,6 +58,8 @@ def test_calculate_position_size_scales_with_risk_pct() -> None:
         dict(account_balance=10_000, atr=-1),
         dict(account_balance=10_000, atr=5.0, risk_pct=0),
         dict(account_balance=10_000, atr=5.0, risk_pct=1.5),
+        dict(account_balance=10_000, atr=5.0, price=0),
+        dict(account_balance=10_000, atr=5.0, price=-10),
     ],
 )
 def test_calculate_position_size_rejects_invalid_input(kwargs: dict) -> None:

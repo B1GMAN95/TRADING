@@ -14,9 +14,17 @@ def calculate_position_size(
     atr: float,
     risk_pct: float = 0.01,
     atr_multiplier: float = 1.5,
+    price: float | None = None,
 ) -> float:
     """Size a position so a stop placed `atr_multiplier` * ATR away risks `risk_pct`
     of the account balance.
+
+    When `price` is given, the result is also capped so the position's notional
+    value (size * price) never exceeds 95% of the account balance - a small
+    ATR (e.g. on a lower timeframe) would otherwise imply a position the
+    account can't actually afford, which a real broker would reject as a
+    margin failure. The 5% headroom leaves room for commission and any
+    slippage between the signal price and the actual fill.
 
     Returns the number of units/contracts to trade.
     """
@@ -26,10 +34,18 @@ def calculate_position_size(
         raise RiskManagerError("atr must be positive")
     if not 0 < risk_pct <= 1:
         raise RiskManagerError("risk_pct must be between 0 and 1")
+    if price is not None and price <= 0:
+        raise RiskManagerError("price must be positive")
 
     risk_amount = account_balance * risk_pct
     stop_distance = atr * atr_multiplier
-    return risk_amount / stop_distance
+    size = risk_amount / stop_distance
+
+    if price is not None:
+        max_affordable_size = (account_balance * 0.95) / price
+        size = min(size, max_affordable_size)
+
+    return size
 
 
 def breakeven_stop_price(
