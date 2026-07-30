@@ -55,3 +55,68 @@ def test_analyze_market_raises_on_http_error() -> None:
 
     with pytest.raises(JarvisBrainError):
         brain.analyze_market(indicators={"rsi": 50}, headlines=[])
+
+
+def test_analyze_market_without_timeframes_leaves_mtf_alpha_score_none() -> None:
+    content = json.dumps(
+        {
+            "bias": "bullish",
+            "confidence_score": 0.8,
+            "trading_advice": "Go long.",
+            "rationale": "Momentum aligns.",
+        }
+    )
+    brain = JarvisBrain(
+        api_key="test-key", model="test-model", client=_client_with_content(content)
+    )
+
+    result = brain.analyze_market(indicators={"rsi": 60}, headlines=[])
+
+    assert result.mtf_alpha_score is None
+
+
+def test_analyze_market_includes_model_returned_mtf_alpha_score() -> None:
+    content = json.dumps(
+        {
+            "bias": "bullish",
+            "confidence_score": 0.8,
+            "trading_advice": "Go long.",
+            "rationale": "All timeframes align.",
+            "mtf_alpha_score": 0.9,
+        }
+    )
+    brain = JarvisBrain(
+        api_key="test-key", model="test-model", client=_client_with_content(content)
+    )
+
+    result = brain.analyze_market(
+        indicators={"rsi": 60},
+        headlines=[],
+        timeframes={"4h": {"bias": "bullish"}, "1h": {"bias": "bullish"}},
+        reference_alpha_score=0.75,
+    )
+
+    assert result.mtf_alpha_score == 0.9
+
+
+def test_analyze_market_falls_back_to_reference_alpha_score_when_model_omits_it() -> None:
+    content = json.dumps(
+        {
+            "bias": "bullish",
+            "confidence_score": 0.8,
+            "trading_advice": "Go long.",
+            "rationale": "All timeframes align.",
+        }
+    )
+    brain = JarvisBrain(
+        api_key="test-key", model="test-model", client=_client_with_content(content)
+    )
+
+    result = brain.analyze_market(
+        indicators={"rsi": 60},
+        headlines=[],
+        timeframes={"4h": {"bias": "bullish"}},
+        reference_alpha_score=0.75,
+    )
+
+    assert result.mtf_alpha_score == 0.75

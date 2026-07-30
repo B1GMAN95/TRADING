@@ -6,9 +6,11 @@ import pandas as pd
 
 from ai.jarvis_brain import JarvisBrain
 from api.trading_engine import (
+    compute_mtf_alpha_score,
     evaluate_trade,
     fetch_gold_headlines,
     get_latest_technical_values,
+    get_mtf_snapshot,
     get_technical_signal,
 )
 from models.schemas.analysis import MarketBias
@@ -157,3 +159,49 @@ def test_evaluate_trade_skips_ai_when_no_technical_signal() -> None:
     assert decision.approved is False
     assert decision.technical_signal == MarketBias.NEUTRAL
     assert decision.ai_analysis is None
+
+
+def _intraday_uptrend_df(n_bars: int = 2000) -> pd.DataFrame:
+    dates = pd.date_range("2024-01-01", periods=n_bars, freq="15min")
+    prices = 1900 + np.cumsum(np.full(n_bars, 0.5))
+    return pd.DataFrame(
+        {
+            "open": prices,
+            "high": prices + 0.2,
+            "low": prices - 0.2,
+            "close": prices,
+            "volume": 1000,
+        },
+        index=dates,
+    )
+
+
+def test_get_mtf_snapshot_reports_bullish_bias_across_all_tiers_in_an_uptrend() -> None:
+    snapshot = get_mtf_snapshot(_intraday_uptrend_df())
+
+    assert set(snapshot) == {"4h", "1h", "15m", "5m"}
+    assert snapshot["4h"]["bias"] == "bullish"
+    assert snapshot["1h"]["bias"] == "bullish"
+    assert snapshot["15m"]["bias"] == "bullish"
+    assert snapshot["5m"]["bias"] == "bullish"
+
+
+def test_get_mtf_snapshot_5m_aliases_15m() -> None:
+    snapshot = get_mtf_snapshot(_intraday_uptrend_df())
+    assert snapshot["5m"] == snapshot["15m"]
+
+
+def test_compute_mtf_alpha_score_reflects_confluence() -> None:
+    assert (
+        compute_mtf_alpha_score(
+            {"4h": "bullish", "1h": "bullish", "15m": "bullish", "5m": "bullish"}
+        )
+        == 1.0
+    )
+    assert (
+        compute_mtf_alpha_score(
+            {"4h": "bullish", "1h": "bullish", "15m": "bearish", "5m": "neutral"}
+        )
+        == 0.5
+    )
+    assert compute_mtf_alpha_score({}) == 0.0

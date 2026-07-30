@@ -7,8 +7,10 @@ from fastapi.templating import Jinja2Templates
 from ai.jarvis_brain import JarvisBrain, JarvisBrainError
 from api.trading_engine import (
     TradingEngineError,
+    compute_mtf_alpha_score,
     fetch_gold_headlines,
     get_latest_technical_values,
+    get_mtf_snapshot,
     get_technical_signal,
 )
 from backtesting.data_loader import load_csv
@@ -60,6 +62,10 @@ def jarvis_status() -> dict:
     technical_signal = get_technical_signal(price_data)
     indicators = get_latest_technical_values(price_data)
 
+    mtf_snapshot = get_mtf_snapshot(price_data)
+    timeframes = {label: tier["bias"] for label, tier in mtf_snapshot.items()}
+    mtf_alpha_score = compute_mtf_alpha_score(timeframes)
+
     try:
         headlines = fetch_gold_headlines()
     except TradingEngineError:
@@ -67,11 +73,18 @@ def jarvis_status() -> dict:
 
     try:
         with JarvisBrain() as brain:
-            ai_analysis = brain.analyze_market(indicators, headlines)
+            ai_analysis = brain.analyze_market(
+                indicators,
+                headlines,
+                timeframes=mtf_snapshot,
+                reference_alpha_score=mtf_alpha_score,
+            )
     except JarvisBrainError as exc:
         return {
             "technical_signal": technical_signal.value,
             "indicators": indicators,
+            "timeframes": timeframes,
+            "mtf_alpha_score": mtf_alpha_score,
             "ai_error": f"JarvisBrain is unavailable: {exc}",
         }
 
@@ -80,6 +93,10 @@ def jarvis_status() -> dict:
     return {
         "technical_signal": technical_signal.value,
         "indicators": indicators,
+        "timeframes": timeframes,
+        "mtf_alpha_score": ai_analysis.mtf_alpha_score
+        if ai_analysis.mtf_alpha_score is not None
+        else mtf_alpha_score,
         "ai_bias": ai_analysis.bias.value,
         "ai_confidence_score": ai_analysis.confidence_score,
         "ai_trading_advice": ai_analysis.trading_advice,

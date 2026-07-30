@@ -68,6 +68,26 @@
     <section>
         <h2>Jarvis live status &mdash; {{ symbol }}</h2>
         <button id="refresh-jarvis">Refresh</button>
+
+        <div id="mtf-indicator" class="mtf-indicator">
+            <div class="mtf-tier">
+                <span class="mtf-circle mtf-neutral" id="mtf-circle-4h"></span>
+                <span class="mtf-label">4H</span>
+            </div>
+            <div class="mtf-tier">
+                <span class="mtf-circle mtf-neutral" id="mtf-circle-1h"></span>
+                <span class="mtf-label">1H</span>
+            </div>
+            <div class="mtf-tier">
+                <span class="mtf-circle mtf-neutral" id="mtf-circle-15m"></span>
+                <span class="mtf-label">15M</span>
+            </div>
+            <div class="mtf-tier">
+                <span class="mtf-circle mtf-neutral" id="mtf-circle-5m"></span>
+                <span class="mtf-label">5M</span>
+            </div>
+        </div>
+
         <div id="jarvis-status" class="jarvis-panel jarvis-neutral">Loading...</div>
     </section>
 

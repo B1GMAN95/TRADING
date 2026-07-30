@@ -2,12 +2,15 @@ import backtrader as bt
 
 from api.risk_manager import RiskManager, breakeven_stop_price, calculate_position_size
 from strategies.base import BaseStrategy
+from strategies.mtf_bias import MTFBias
 
 
 class ICCStrategy(BaseStrategy):
     """Indication-Correction-Continuation strategy, designed for gold (XAU/USD)
     on intraday (5m/15m) timeframes by default - see the params below for the
-    EMA/RSI tuning that assumes.
+    EMA/RSI tuning that assumes. Note: "5m" here is currently the same 15M
+    feed as everything else - a genuinely finer feed would need price_data
+    itself re-sourced at 5-minute granularity (see backtesting/data_loader.py).
 
     1. Indication (Impuls): price breaks strongly through the trend EMA (up or
        down) on above-average volume, signaling an impulsive move.
@@ -25,7 +28,15 @@ class ICCStrategy(BaseStrategy):
     ATR and a fixed 1% account risk, new entries are blocked once a day's
     losses breach the daily max-drawdown limit, and the stop is moved to
     breakeven once a trade reaches 1:1 reward-to-risk.
+
+    When given 1H/4H feeds (strategies/mtf_bias.py, typically added via
+    cerebro.resampledata()), a setup is only started - and re-checked before
+    the final entry - if its direction matches both the 1H trend and 4H
+    market structure. Without those extra feeds, this gate is a no-op, so
+    single-feed callers/tests are unaffected.
     """
+
+    requires_mtf = True
 
     params = (
         # Shortened from 20/50/200 for intraday (5m/15m) timeframes, where a
@@ -66,6 +77,8 @@ class ICCStrategy(BaseStrategy):
         self.trend_cross = bt.ind.CrossOver(self.data.close, self.ema_trend)
         self.atr = bt.ind.ATR(period=self.p.atr_period)
 
+        self.mtf_bias = MTFBias(self) if len(self.datas) >= 3 else None
+
         self.risk_manager = RiskManager(daily_max_drawdown_pct=self.p.daily_max_drawdown_pct)
         self.breakeven_count = 0  # lifetime counter; not reset between trades
 
@@ -98,8 +111,13 @@ class ICCStrategy(BaseStrategy):
             if order == self.order:
                 self.order = None
 
+    def _mtf_allows(self, direction: str) -> bool:
+        return self.mtf_bias is None or self.mtf_bias.allows(direction)
+
     def next(self) -> None:
         self.risk_manager.update(self.broker.getvalue(), self.data.datetime.date(0))
+        if self.mtf_bias is not None:
+            self.mtf_bias.update()
 
         if self.position:
             self._manage_open_position()
@@ -162,9 +180,9 @@ class ICCStrategy(BaseStrategy):
         if not volume_confirmed:
             return
 
-        if self.trend_cross[0] > 0:
+        if self.trend_cross[0] > 0 and self._mtf_allows("long"):
             self._start_indication("long")
-        elif self.trend_cross[0] < 0:
+        elif self.trend_cross[0] < 0 and self._mtf_allows("short"):
             self._start_indication("short")
 
     def _start_indication(self, direction: str) -> None:
@@ -266,6 +284,12 @@ class ICCStrategy(BaseStrategy):
                 self._enter("short")
 
     def _enter(self, direction: str) -> None:
+        if not self._mtf_allows(direction):
+            # The 1H/4H bias flipped against us while waiting for Correction
+            # and Continuation - the setup is no longer valid.
+            self._reset_setup()
+            return
+
         entry_price = self.data.close[0]
 
         if direction == "long":
